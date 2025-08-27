@@ -92,7 +92,7 @@
     <div class="container">
         <!-- Brand -->
         <a class="navbar-brand fw-bold" href="index.php">
-            <i class="bx bx-store-alt me-2"></i>SL Hot GIRL
+            SL HOT GIRL
         </a>
         
         <!-- Mobile Toggle -->

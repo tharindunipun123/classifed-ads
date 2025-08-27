@@ -1,5 +1,12 @@
 <?php
+// Start session at the very top
+session_start();
 require_once 'db.php';
+
+// Helper function should be at the top
+function sanitize_input($data) {
+    return htmlspecialchars(strip_tags(trim($data)));
+}
 
 $page_title = 'Payment';
 $error = '';
@@ -42,19 +49,22 @@ $ad_prices = [
 $amount = $ad_prices[$ad['ad_type']] ?? 0;
 
 // Handle payment confirmation
-if ($_POST && isset($_POST['confirm_payment'])) {
-    $payment_method = sanitize_input($_POST['payment_method']);
-    $transaction_id = sanitize_input($_POST['transaction_id']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
+    $payment_method = sanitize_input($_POST['payment_method'] ?? '');
+    $transaction_id = sanitize_input($_POST['transaction_id'] ?? '');
     
-    function sanitize_input($data) {
-        return htmlspecialchars(strip_tags(trim($data)));
-    }
+    // Debug output
+    echo "<!-- DEBUG: Payment Method: $payment_method -->";
+    echo "<!-- DEBUG: Transaction ID: $transaction_id -->";
     
     // Handle receipt upload
     $receipt_image = '';
     if (isset($_FILES['receipt']) && $_FILES['receipt']['error'] === UPLOAD_ERR_OK) {
+        echo "<!-- DEBUG: File upload detected -->";
         $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-        if (in_array($_FILES['receipt']['type'], $allowed_types)) {
+        $file_type = $_FILES['receipt']['type'];
+        
+        if (in_array($file_type, $allowed_types)) {
             $directory = 'uploads/receipts/';
             if (!file_exists($directory)) {
                 mkdir($directory, 0777, true);
@@ -66,24 +76,68 @@ if ($_POST && isset($_POST['confirm_payment'])) {
             
             if (move_uploaded_file($_FILES['receipt']['tmp_name'], $filepath)) {
                 $receipt_image = $filepath;
+                echo "<!-- DEBUG: File uploaded successfully: $receipt_image -->";
+            } else {
+                echo "<!-- DEBUG: File upload failed -->";
             }
+        } else {
+            echo "<!-- DEBUG: Invalid file type: $file_type -->";
         }
     }
     
+    // Validation
     if (empty($payment_method)) {
         $error = 'Please select a payment method';
+        echo "<!-- DEBUG: Validation failed - payment method empty -->";
     } elseif (empty($transaction_id)) {
-        $error = 'Transaction ID is required';
+        $error = 'Mobile number is required';
+        echo "<!-- DEBUG: Validation failed - transaction ID empty -->";
     } else {
         try {
+            // Check if ad_payments table exists
+            $table_check = $pdo->query("SHOW TABLES LIKE 'ad_payments'")->fetch();
+            if (!$table_check) {
+                // Create the table if it doesn't exist
+                $create_table = "CREATE TABLE ad_payments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    ad_id INT NOT NULL,
+                    amount DECIMAL(10,2) NOT NULL,
+                    payment_method VARCHAR(50) NOT NULL,
+                    transaction_id VARCHAR(100) NOT NULL,
+                    receipt_image VARCHAR(255) DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (ad_id) REFERENCES ads(id) ON DELETE CASCADE
+                )";
+                $pdo->exec($create_table);
+                echo "<!-- DEBUG: Created ad_payments table -->";
+            }
+            
             // Insert payment record
             $stmt = $pdo->prepare("INSERT INTO ad_payments (ad_id, amount, payment_method, transaction_id, receipt_image) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$ad_id, $amount, $payment_method, $transaction_id, $receipt_image]);
+            $result = $stmt->execute([$ad_id, $amount, $payment_method, $transaction_id, $receipt_image]);
             
-            $success = 'Payment details submitted successfully! Your ad will be reviewed and approved within 24 hours.';
+            if ($result) {
+                $success = 'Payment details submitted successfully! Your ad will be reviewed and approved within 24 hours.';
+                
+                // Update ad status to pending payment verification
+                $update_stmt = $pdo->prepare("UPDATE ads SET payment_status = 'pending_verification' WHERE id = ?");
+                $update_result = $update_stmt->execute([$ad_id]);
+                
+                echo "<!-- DEBUG: Payment inserted successfully, ad update result: " . ($update_result ? 'success' : 'failed') . " -->";
+                
+                // Redirect after success
+                header("Refresh: 3; URL=dashboard.php");
+            } else {
+                $error = 'Failed to process payment. Please try again.';
+                echo "<!-- DEBUG: Payment insertion failed -->";
+                $errorInfo = $stmt->errorInfo();
+                echo "<!-- DEBUG: PDO Error: " . implode(" | ", $errorInfo) . " -->";
+            }
             
         } catch (Exception $e) {
-            $error = 'Failed to process payment. Please try again.';
+            $error = 'Database error: ' . $e->getMessage();
+            error_log("Payment Error: " . $e->getMessage());
+            echo "<!-- DEBUG: Exception: " . $e->getMessage() . " -->";
         }
     }
 }
@@ -91,9 +145,51 @@ if ($_POST && isset($_POST['confirm_payment'])) {
 include 'header.php';
 ?>
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo htmlspecialchars($page_title); ?></title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <style>
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .alert-auto-hide {
+            display: block;
+        }
+        .text-purple {
+            color: #6f42c1;
+        }
+        .debug-info {
+            background: #f0f0f0;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-lg-8">
+            
+            <!-- Debug Information -->
+            <div class="debug-info">
+                <strong>Debug Information:</strong><br>
+                Ad ID: <?php echo $ad_id; ?><br>
+                User ID: <?php echo $_SESSION['user_id']; ?><br>
+                Amount: Rs. <?php echo number_format($amount); ?><br>
+                POST Method: <?php echo ($_SERVER['REQUEST_METHOD'] === 'POST') ? 'Yes' : 'No'; ?><br>
+                Form Submitted: <?php echo isset($_POST['confirm_payment']) ? 'Yes' : 'No'; ?>
+            </div>
+            
             <div class="card">
                 <div class="card-header bg-gradient-primary text-white">
                     <h5 class="mb-0">
@@ -113,8 +209,8 @@ include 'header.php';
                         <div class="alert alert-success alert-auto-hide">
                             <i class='bx bx-check me-2'></i>
                             <?php echo $success; ?>
-                            <br>
-                            <a href="dashboard.php" class="btn btn-sm btn-success mt-2">Go to Dashboard</a>
+                            <p class="mt-2">You will be redirected to your dashboard in 3 seconds...</p>
+                            <a href="dashboard.php" class="btn btn-sm btn-success mt-2">Go to Dashboard Now</a>
                         </div>
                     <?php endif; ?>
                     
@@ -178,22 +274,25 @@ include 'header.php';
                             <label for="payment_method" class="form-label">Payment Method *</label>
                             <select class="form-select" id="payment_method" name="payment_method" required>
                                 <option value="">Select Payment Method</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="ez_cash">eZ Cash</option>
-                                <option value="mcash">mCash</option>
-                                <option value="payhere">PayHere</option>
-                                <option value="other">Other</option>
+                                <option value="bank_transfer" <?php echo (isset($_POST['payment_method']) && $_POST['payment_method'] == 'bank_transfer') ? 'selected' : ''; ?>>Bank Transfer</option>
+                                <option value="ez_cash" <?php echo (isset($_POST['payment_method']) && $_POST['payment_method'] == 'ez_cash') ? 'selected' : ''; ?>>eZ Cash</option>
+                                <option value="mcash" <?php echo (isset($_POST['payment_method']) && $_POST['payment_method'] == 'mcash') ? 'selected' : ''; ?>>mCash</option>
+                                <option value="payhere" <?php echo (isset($_POST['payment_method']) && $_POST['payment_method'] == 'payhere') ? 'selected' : ''; ?>>PayHere</option>
+                                <option value="other" <?php echo (isset($_POST['payment_method']) && $_POST['payment_method'] == 'other') ? 'selected' : ''; ?>>Other</option>
                             </select>
                         </div>
                         
                         <div class="mb-3">
-                            <label for="transaction_id" class="form-label">Transaction ID / Reference Number *</label>
+                            <label for="transaction_id" class="form-label">Enter Your Mobile Number *</label>
                             <input type="text" 
                                    class="form-control" 
                                    id="transaction_id" 
                                    name="transaction_id" 
-                                   placeholder="Enter transaction ID or reference number"
+                                   placeholder="Enter 10-digit mobile number (e.g., 771234567)"
+                                   value="<?php echo isset($_POST['transaction_id']) ? htmlspecialchars($_POST['transaction_id']) : ''; ?>"
+                                   pattern="[0-9]{9,10}"
                                    required>
+                            <div class="form-text">Enter your 9 or 10 digit mobile number without country code</div>
                         </div>
                         
                         <div class="mb-4">
@@ -203,7 +302,7 @@ include 'header.php';
                                    id="receipt" 
                                    name="receipt" 
                                    accept="image/*">
-                            <div class="form-text">Upload payment receipt for faster verification</div>
+                            <div class="form-text">Upload payment receipt for faster verification (JPEG, PNG, GIF)</div>
                         </div>
                         
                         <div class="d-grid">
@@ -237,7 +336,35 @@ include 'header.php';
 </div>
 
 <script>
-document.getElementById('paymentForm')?.addEventListener('submit', function() {
+document.getElementById('paymentForm')?.addEventListener('submit', function(e) {
+    // Basic validation
+    const paymentMethod = document.getElementById('payment_method');
+    const transactionId = document.getElementById('transaction_id');
+    
+    if (!paymentMethod.value) {
+        e.preventDefault();
+        alert('Please select a payment method');
+        paymentMethod.focus();
+        return;
+    }
+    
+    if (!transactionId.value.trim()) {
+        e.preventDefault();
+        alert('Please enter your mobile number');
+        transactionId.focus();
+        return;
+    }
+    
+    // Validate mobile number format (9-10 digits)
+    const mobileRegex = /^[0-9]{9,10}$/;
+    if (!mobileRegex.test(transactionId.value.trim())) {
+        e.preventDefault();
+        alert('Please enter a valid 9 or 10-digit mobile number (numbers only)');
+        transactionId.focus();
+        return;
+    }
+    
+    // Show loading state
     const button = document.getElementById('paymentBtn');
     if (button) {
         button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
@@ -247,3 +374,5 @@ document.getElementById('paymentForm')?.addEventListener('submit', function() {
 </script>
 
 <?php include 'footer.php'; ?>
+</body>
+</html>

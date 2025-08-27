@@ -6,17 +6,17 @@
       <!-- Brand / About -->
       <div class="col-lg-4 col-md-6">
         <h4 class="fw-bold mb-3">
-          <i class="bx bx-store-alt me-2"></i> ClassiFind
+          <i class="bx bx-store-alt me-2"></i> SL HOT GIRL
         </h4>
         <p>
           Sri Lanka's leading classified ads platform. Post your ads, find what you need, and connect with buyers and sellers across the island.
         </p>
-        <div class="d-flex gap-3 mt-3">
+        <!-- <div class="d-flex gap-3 mt-3">
           <a href="#" class="footer-icon"><i class="bx bxl-facebook-circle"></i></a>
           <a href="#" class="footer-icon"><i class="bx bxl-twitter"></i></a>
           <a href="#" class="footer-icon"><i class="bx bxl-instagram"></i></a>
           <a href="#" class="footer-icon"><i class="bx bxl-whatsapp"></i></a>
-        </div>
+        </div> -->
       </div>
 
       <!-- Quick Links -->
@@ -31,7 +31,7 @@
       </div>
 
       <!-- Categories -->
-      <div class="col-lg-3 col-md-6">
+      <!-- <div class="col-lg-3 col-md-6">
         <h6 class="text-uppercase fw-semibold mb-3">Popular Categories</h6>
         <ul class="list-unstyled">
           <li><a href="#" class="footer-link">Personal Ads</a></li>
@@ -39,13 +39,13 @@
           <li><a href="#" class="footer-link">Sale / Rent</a></li>
           <li><a href="#" class="footer-link">Services</a></li>
         </ul>
-      </div>
+      </div> -->
 
       <!-- Contact Info -->
       <div class="col-lg-3 col-md-6">
         <h6 class="text-uppercase fw-semibold mb-3">Contact</h6>
         <ul class="list-unstyled">
-          <li class="mb-2"><i class="bx bx-envelope me-2"></i> info@classifind.lk</li>
+          <li class="mb-2"><i class="bx bx-envelope me-2"></i> info@slhotgirl.com</li>
           <li class="mb-2"><i class="bx bx-phone me-2"></i> +94 11 123 4567</li>
           <li><i class="bx bx-map me-2"></i> Colombo, Sri Lanka</li>
         </ul>
@@ -58,7 +58,7 @@
     <!-- Bottom Footer -->
     <div class="row align-items-center">
       <div class="col-md-6">
-        <p class="mb-0">&copy; <?php echo date('Y'); ?> ClassiFind. All Rights Reserved.</p>
+        <p class="mb-0">&copy; <?php echo date('Y'); ?> SL HOT GIRL. All Rights Reserved.</p>
       </div>
       <div class="col-md-6 text-md-end">
         <a href="privacy.php" class="footer-link me-3">Privacy Policy</a>
